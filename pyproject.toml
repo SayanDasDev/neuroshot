@@ -1,0 +1,17 @@
+[project]
+name = "neuroshot"
+version = "0.1.0"
+description = "NeuroShot: Deep RL-based projectile interception system."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "gymnasium[accept-rom-py,box2d]>=1.0.0",
+    "stable-baselines3[extra]>=2.3.0",
+    "torch>=2.2.0",
+    "pygame>=2.5.0",
+    "numpy>=1.26.0",
+    "tensorboard>=2.16.0",
+]
+
+[tool.uv]
+managed = true
