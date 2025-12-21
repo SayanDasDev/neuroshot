@@ -100,22 +100,51 @@ class NeuroShotEnv(gym.Env):
             pygame.display.set_caption("NeuroShot v1 (Complex)")
             self.clock = pygame.time.Clock()
 
-        self.screen.fill((20, 10, 30)) # Purple Tint for v1
+        # Darker background for better contrast
+        self.screen.fill((20, 10, 30)) 
         
+        # --- ENHANCED WIND GAUGE ---
+        gauge_center_x = 400
+        gauge_y = 50
+        max_bar_width = 80 # The "baseline" length
+        
+        # 1. Draw Static Baseline (The "Neutral" reference)
+        # This helps you see how far from zero the wind actually is
+        pygame.draw.line(self.screen, (60, 60, 90), 
+                         (gauge_center_x - max_bar_width, gauge_y), 
+                         (gauge_center_x + max_bar_width, gauge_y), 1)
+        pygame.draw.circle(self.screen, (200, 200, 200), (gauge_center_x, gauge_y), 2) # Center point
+        
+        # 2. Calculate Arrow Tip
+        # Scaling wind_force (usually -3 to 3) to pixels
+        tip_x = gauge_center_x + int(self.wind_force * 25)
+        
+        # 3. Draw the Wind Arrow and Head
+        if abs(self.wind_force) > 0.1:
+            wind_color = (100, 255, 100)
+            # Arrow Shaft
+            pygame.draw.line(self.screen, wind_color, (gauge_center_x, gauge_y), (tip_x, gauge_y), 3)
+            
+            # Arrow Head (Triangle)
+            direction = 1 if self.wind_force > 0 else -1
+            head_size = 10
+            points = [
+                (tip_x, gauge_y), # Tip
+                (tip_x - (direction * head_size), gauge_y - 6), # Top wing
+                (tip_x - (direction * head_size), gauge_y + 6)  # Bottom wing
+            ]
+            pygame.draw.polygon(self.screen, wind_color, points)
+
+        # --- ENVIRONMENT RENDERING ---
         # Ground
         pygame.draw.line(self.screen, (150, 150, 150), (0, 350), (800, 350), 2)
-        
-        # Draw Wind Indicator (Visual aid for us to see the wind direction)
-        wind_start = (400, 50)
-        wind_end = (400 + int(self.wind_force * 20), 50)
-        pygame.draw.line(self.screen, (100, 255, 100), wind_start, wind_end, 5)
         
         # Basket (Cyan)
         pygame.draw.rect(self.screen, (0, 255, 255), (int(basket_x), 342, 60, 10))
         
         # Path and Ball
         if len(path) > 1:
-            pygame.draw.lines(self.screen, (255, 100, 255), False, path, 1)
+            pygame.draw.lines(self.screen, (255, 100, 255), False, path, 2)
         pygame.draw.circle(self.screen, (255, 255, 255), (int(self.ball_pos[0]), int(self.ball_pos[1])), 6)
         
         pygame.display.flip()

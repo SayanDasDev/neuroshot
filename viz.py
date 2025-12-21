@@ -9,6 +9,9 @@ def main():
     # Use gym.make instead of calling the class directly
     # We pass the render_mode here
     # env = gym.make("NeuroShot-v0", render_mode=RENDER_MODE)
+    # env = gym.make("NeuroShot-v0.1", render_mode=RENDER_MODE)
+    # env = gym.make("NeuroShot-v0.2", render_mode=RENDER_MODE)
+
     env = gym.make("NeuroShot-v1", render_mode=RENDER_MODE)
     
     print("Starting NeuroShot Registered Env Test...")
