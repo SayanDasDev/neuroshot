@@ -1,0 +1,140 @@
+\documentclass[a4paper,11pt,notitlepage]{report}
+
+% Language and encoding
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[english]{babel}
+\usepackage{lmodern}         
+\renewcommand{\rmdefault}{bch}
+
+% Page layout
+\usepackage{geometry}
+\geometry{a4paper, margin=1in}
+
+% Packages for styling
+\usepackage{amsmath, amssymb} % For mathematical formulas
+\usepackage{booktabs}         % For professional tables
+\usepackage{hyperref}         % For clickable links
+\usepackage{setspace}         % For line spacing
+\usepackage{titlesec}         % For section formatting
+
+\setstretch{1.2} % Adjust line spacing
+
+%hyperlinking references and table contents
+\hypersetup{
+colorlinks=true,
+linkcolor = black,
+filecolor = black,
+urlcolor = black, 
+citecolor = blue}
+ 
+\onehalfspacing
+
+   
+\addtolength{\voffset}{-0.6cm}
+\addtolength{\textheight}{0.8cm}
+\addtolength{\hoffset}{-0.7cm}
+\addtolength{\textwidth}{1.4cm} 
+\addtolength{\marginparwidth}{1.2cm}
+
+% Document Metadata
+\title{
+    \textbf{\Huge NeuroShot} \\
+    \Large Dynamic Trajectory Optimization for Moving Targets using DRL \\
+    \vspace{0.5cm}
+    \normalsize Deep Reinforcement Learning: Project Proposal
+}
+\author{Team Name: \textbf{Insight Engineers}}
+\date{}
+
+\begin{document}
+\fontsize{11}{15}\selectfont
+
+\maketitle
+
+\vspace{-1cm}
+\begin{center}
+    \begin{tabular*}{0.85\textwidth}{@{\extracolsep{\fill}}ccc}
+        \multicolumn{3}{c}{\large Project by} \\ [0.5ex] % Spans all 3 columns
+        \midrule % Optional: adds a thin line under "Project by"
+        \textbf{Niladri Ghosh} & \textbf{Raihan Uddin} & \textbf{Sayan Das} \\
+        B2430100 & B2430070 & B2430035 \\
+    \end{tabular*}
+\end{center}
+\hrule
+
+\section*{Problem Description and Motivation}
+
+\subsection*{The Problem Statement}
+In traditional robotics and gaming environments, hitting a static target is a solved problem using basic trigonometry. However, when the target is in motion, the complexity increases exponentially. The system must not only calculate the required force and angle for a projectile but must also \textbf{predict the future position} of the target based on its current velocity and direction.
+
+Specifically, this project addresses the challenge of a stationary agent attempting to intercept a moving goal. The ball is located at a fixed origin point $P(0,0)$, while a basket moves within a predefined range $[x_{min}, x_{max}]$ at a variable velocity $v_t$. The agent must decide on the instantaneous launch velocity $V_0$ and launch angle $\theta$ to ensure the projectile path intersects with the basket's future coordinates.
+
+\subsection*{Motivation}
+The motivation behind this project is to explore the intersection of \textbf{Physics-Engine Simulations} and \textbf{Deep Reinforcement Learning (DRL)}. Success in this simulation mimics real-world challenges in:
+\begin{itemize}
+    \item \textbf{Automated Logistics:} Precise placement of items into moving bins on high-speed conveyor belts.
+    \item \textbf{Defense \& Aerospace:} Developing interception algorithms for moving objects in 3D space where traditional PID controllers might be too rigid.
+    \item \textbf{Sports Analytics:} Creating intelligent training bots that can accurately simulate pass/shot dynamics in real-time.
+\end{itemize}
+
+\section*{Proposed Approach and Methodology}
+The system will be modeled as a Markov Decision Process (MDP) defined by the tuple $(S, A, P, R)$.
+
+\subsection*{State and Action Space}
+\begin{itemize}
+    \item \textbf{State Space ($S$):} The agent observes the current position of the basket $(x_t, y_t)$, its velocity $v_t$, and its distance from the ball.
+    \item \textbf{Action Space ($A$):} A continuous space consisting of two primary parameters:
+    \begin{enumerate}
+        \item \textbf{Launch Force/Magnitude:} The initial speed $V_0$.
+        \item \textbf{Launch Angle:} The angle $\theta$ relative to the horizontal plane.
+    \end{enumerate}
+\end{itemize}
+
+\subsection*{Proposed AI Techniques}
+Since the action space is continuous, we will move away from discrete Q-Learning and utilize \textbf{Policy Gradient methods}. We plan to implement and compare two primary RL algorithms:
+\begin{enumerate}
+    \item \textbf{Deep Deterministic Policy Gradient (DDPG):} An actor-critic, model-free algorithm for high-dimensional, continuous action spaces. The "Actor" proposes an angle and force, while the "Critic" evaluates the expected return.
+    \item \textbf{Proximal Policy Optimization (PPO):} Serving as our baseline, PPO is known for stability and prevents "catastrophic forgetting" by constraining policy updates.
+\end{enumerate}
+
+\subsection*{Physics Simulation \& Reward Design}
+The environment will utilize a physics engine (e.g., Pymunk or PyBullet). The reward function $R$ is defined as:
+\[
+R = \begin{cases} 
++100 & \text{if Ball enters Basket} \\ 
+-d & \text{if Ball misses (where } d \text{ is the final distance)} \\ 
+-1 & \text{per time step (to encourage speed)} 
+\end{cases}
+\]
+
+\section*{Expected Outcome and Deliverables}
+
+\subsection*{Deliverables}
+\begin{itemize}
+    \item \textbf{Trained RL Model:} A neural network capable of predicting required launch vectors across varying target speeds.
+    \item \textbf{Interactive Simulation:} A visual environment (Pygame/Matplotlib) demonstrating the agent's learning progress.
+    \item \textbf{Performance Analysis:} A report featuring learning curves and accuracy heatmaps across different trajectories.
+\end{itemize}
+
+\subsection*{Expected Application}
+The final application will demonstrate an autonomous system that adapts to different trajectories without manual physics re-coding, relying on its learned "intuition" of environment dynamics.
+
+\section*{Tentative Work Division}
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lp{10cm}}
+        \toprule
+        \textbf{Member} & \textbf{Primary Responsibilities} \\
+        \midrule
+        \textbf{Niladri Ghosh} & \textbf{Environment Development:} Designing physics simulation, target movement patterns, and state-space logic. \\
+        \addlinespace
+        \textbf{Raihan Uddin} & \textbf{Algorithm Implementation:} Designing Actor-Critic architecture, hyperparameter tuning, and reward shaping. \\
+        \addlinespace
+        \textbf{Sayan Das} & \textbf{Evaluation \& Visualization:} Developing the visual interface, logging training data, and comparative analysis. \\
+        \bottomrule
+    \end{tabular}
+\end{table}
+
+\end{document}
