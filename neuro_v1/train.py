@@ -47,5 +47,5 @@ class NeuroShotTrainer:
 if __name__ == "__main__":
     trainer = NeuroShotTrainer()
     # Train for real (200,000 steps)
-    trainer.train(steps=200000)
+    trainer.train(steps=1000000)
     trainer.save()
