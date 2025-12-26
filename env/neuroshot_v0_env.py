@@ -1,4 +1,4 @@
-# /home/sysadm/Music/neuroshot/env/neuroshot_v0_env.py
+# NeuroShot Environment v0 - Basic Projectile Physics
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -17,11 +17,9 @@ class NeuroShotEnv(gym.Env):
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
 
         # Define Observation Space: [Basket X, Basket Speed, Ball X, Ball Y]
-        # Using Box space as per standard for continuous values
+        # Using -inf to inf to avoid warnings, values will be normalized in _get_obs()
         self.observation_space = spaces.Box(
-            low=np.array([0, -20, 0, 0], dtype=np.float32),
-            high=np.array([800, 20, 800, 400], dtype=np.float32),
-            dtype=np.float32
+            low=-np.inf, high=np.inf, shape=(4,), dtype=np.float32
         )
 
         # Environment State Variables
@@ -35,12 +33,15 @@ class NeuroShotEnv(gym.Env):
         self.clock = None
 
     def _get_obs(self):
-        """Standard helper to return the current observation."""
+        """
+        Returns normalized observations to help the Neural Network learn faster.
+        Scales values to approximately 0.0 - 1.0 or -1.0 - 1.0 range.
+        """
         return np.array([
-            self.basket_x, 
-            self.basket_speed, 
-            self.ball_pos[0], 
-            self.ball_pos[1]
+            self.basket_x / self.width,        # 0.0 to 1.0
+            self.basket_speed / 20.0,          # approx -1.0 to 0.0
+            self.ball_pos[0] / self.width,     # 0.0 to 1.0
+            self.ball_pos[1] / self.height     # 0.0 to 1.0
         ], dtype=np.float32)
 
     def _get_info(self):
@@ -54,9 +55,16 @@ class NeuroShotEnv(gym.Env):
         # We need the following line to seed self.np_random
         super().reset(seed=seed)
 
-        # Initialize state using self.np_random (standard for reproducibility)
-        self.basket_x = self.np_random.uniform(400, 750)
-        self.basket_speed = self.np_random.uniform(-15, -5)
+        # Fixed mode for deterministic testing
+        fixed_mode = options and options.get("fixed")
+        
+        if fixed_mode:
+            self.basket_x = 600.0
+            self.basket_speed = -8.0
+        else:
+            self.basket_x = self.np_random.uniform(400, 750)
+            self.basket_speed = self.np_random.uniform(-15, -5)
+        
         self.ball_pos = np.array([50.0, 350.0])
 
         observation = self._get_obs()
@@ -72,33 +80,43 @@ class NeuroShotEnv(gym.Env):
         v0 = ((action[0] + 1) / 2) * 80 + 30
         theta = np.radians(((action[1] + 1) / 2) * 70 + 15)
         
-        g, t, dt = 9.8, 0, 0.08
+        # Physics Constants
+        g = 9.8
+        dt = 0.03  # Smaller time step for smoother physics
+        t = 0.0
         path = []
         
+        # Use local variables to prevent loop condition bugs
+        ball_x, ball_y = 50.0, 350.0
+        
         # 2. Physics Simulation
-        while self.ball_pos[1] <= 350:
+        while ball_y <= 350 and ball_x <= 800:
             t += dt
-            x = 50 + v0 * np.cos(theta) * t
-            y = 350 - (v0 * np.sin(theta) * t - 0.5 * g * t**2)
+            ball_x = 50 + v0 * np.cos(theta) * t
+            ball_y = 350 - (v0 * np.sin(theta) * t - 0.5 * g * t**2)
             
-            self.ball_pos = np.array([x, y])
+            # Update self.ball_pos for rendering/observation
+            self.ball_pos = np.array([ball_x, ball_y])
             curr_basket_x = self.basket_x + (self.basket_speed * t)
             
             if self.render_mode == "human":
-                path.append((int(x), int(y)))
+                path.append((int(ball_x), int(ball_y)))
                 self._render_frame(curr_basket_x, path)
 
-            if x > 800 or y > 400: break # Out of bounds
+            if ball_y > 350:
+                break
 
         # 3. Termination Logic
         final_basket_x = self.basket_x + (self.basket_speed * t)
-        error = abs(self.ball_pos[0] - final_basket_x)
+        error = abs(ball_x - final_basket_x)
         
-        # Reward design: Sparse + Shape
-        terminated = True
-        reward = 100.0 if error < 25 else -error * 0.1
+        # Improved reward shaping - always provide gradient signal
+        reward = -error * 0.05
+        if error < 25:  # Hit threshold
+            reward += 100.0
         
         # Truncation (optional, e.g., for time limits)
+        terminated = True
         truncated = False 
 
         return self._get_obs(), reward, terminated, truncated, {"error": error}
