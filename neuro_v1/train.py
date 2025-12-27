@@ -35,7 +35,7 @@ class NeuroShotTrainer:
             verbose=1,
         )
 
-    def train(self, steps=200_000):
+    def train(self, steps):
         print(f"Training started on {self.env_name} for {steps} steps...")
         self.model.learn(total_timesteps=steps)
         print("Training finished!")
