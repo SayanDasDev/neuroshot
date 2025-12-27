@@ -7,7 +7,11 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import env
 
 class NeuroShotPlayer:
-    def __init__(self, env_name="NeuroShot-v1", model_path="neuroshot_v1_ppo_model"):
+    def __init__(self, env_name="NeuroShot-v1", model_path=None):
+        if model_path is None:
+            # Get the directory where this script is located
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            model_path = os.path.join(script_dir, "neuroshot_v1_ppo_model")
         self.env = gym.make(env_name, render_mode="human")
         self.model = PPO.load(model_path)
 
