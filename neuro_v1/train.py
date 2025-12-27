@@ -18,7 +18,7 @@ class PlottingCallback(BaseCallback):
     Custom callback for plotting training progress using matplotlib.
     Tracks episode rewards, success rate, and errors.
     """
-    def __init__(self, check_freq=10000, save_path='./training_plots', verbose=1):
+    def __init__(self, check_freq=500000, save_path='./training_plots', verbose=1):
         super(PlottingCallback, self).__init__(verbose)
         self.check_freq = check_freq
         os.makedirs(save_path, exist_ok=True)
@@ -133,7 +133,7 @@ class NeuroShotTrainer:
         print(f"Expected training time: ~{steps/50000:.0f}-{steps/30000:.0f} minutes\n")
         
         if use_callback:
-            callback = PlottingCallback(check_freq=10000, verbose=1)
+            callback = PlottingCallback(check_freq=500000, verbose=1)
             self.model.learn(total_timesteps=steps, callback=callback)
         else:
             self.model.learn(total_timesteps=steps)
