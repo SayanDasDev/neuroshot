@@ -26,7 +26,7 @@ training:
 logging:
   check_freq: 100000
   save_path: "./training_plots"
-  model_dir: "./models"
+  model_dir: "neuro_v1/models"
   log_dir: "./logs"
   csv_log_file: "training_metrics.csv"
   model_name: "neuroshot_v1_ppo_model"

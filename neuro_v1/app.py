@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import numpy as np
 import gymnasium as gym
@@ -12,6 +13,14 @@ import env
 from neuro_v1.utils.config import ConfigLoader
 
 app = FastAPI(title="NeuroShot Inference API")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Global model
 model = None
@@ -32,6 +41,10 @@ async def load_model():
         return
     model = PPO.load(model_path)
     print("Model loaded successfully.")
+
+@app.get("/")
+def read_root():
+    return {"status": "online", "message": "NeuroShot V1 API is running. Use /predict to get actions."}
 
 @app.get("/health")
 def health_check():
