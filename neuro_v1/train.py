@@ -8,146 +8,129 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 from datetime import datetime
+import pandas as pd
 
-# Add the parent directory to the path so Python can find 'env'
+# Add path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-import env 
+import env  # Register envs
+from neuro_v1.utils.config import ConfigLoader
 
 class PlottingCallback(BaseCallback):
     """
-    Custom callback for plotting training progress using matplotlib.
-    Tracks episode rewards, success rate, and errors.
+    Custom callback for plotting training progress and saving metrics to CSV.
     """
-    def __init__(self, check_freq=500000, save_path='./training_plots', verbose=1):
+    def __init__(self, check_freq: int, save_path: str, verbose=1):
         super(PlottingCallback, self).__init__(verbose)
         self.check_freq = check_freq
-        os.makedirs(save_path, exist_ok=True)
         self.save_path = save_path
+        os.makedirs(save_path, exist_ok=True)
         
-        # Tracking metrics
+        # Configure CSV logging
+        config = ConfigLoader.get()
+        self.csv_file = os.path.join(save_path, config.get('logging', {}).get('csv_log_file', 'training_metrics.csv'))
+        
+        # Initialize DataFrame logic
         self.episode_rewards = []
-        self.episode_errors = []
         self.episode_successes = []
-        self.timesteps = []
         
+        # Create CSV with headers if it doesn't exist
+        if not os.path.exists(self.csv_file):
+            pd.DataFrame(columns=['step', 'reward', 'success_rate']).to_csv(self.csv_file, index=False)
+
     def _on_step(self) -> bool:
-        # Get the monitor wrapper to access episode info
         if len(self.model.ep_info_buffer) > 0:
-            # Get the most recent episode info
             for info in self.model.ep_info_buffer:
-                if 'r' in info:  # 'r' is the episode reward
+                if 'r' in info:
                     self.episode_rewards.append(info['r'])
-                    # Success if reward > 50 (means we got the +100 bonus minus some distance penalty)
                     self.episode_successes.append(1 if info['r'] > 50 else 0)
         
-        # Every check_freq steps, update the plot
         if self.n_calls % self.check_freq == 0 and len(self.episode_rewards) > 0:
-            self._plot_progress()
+            self._plot_and_log()
             
         return True
     
-    def _plot_progress(self):
-        """Generate and save training progress plots"""
-        fig, axes = plt.subplots(2, 1, figsize=(12, 10))
-        
-        # Calculate rolling averages (window of 100 episodes)
+    def _plot_and_log(self):
+        # Calculate stats
         window = min(100, len(self.episode_rewards))
-        if window > 0:
-            rewards_smooth = np.convolve(self.episode_rewards, 
-                                        np.ones(window)/window, mode='valid')
-            successes_smooth = np.convolve(self.episode_successes, 
-                                          np.ones(window)/window, mode='valid')
+        avg_reward = np.mean(self.episode_rewards[-window:])
+        success_rate = np.mean(self.episode_successes[-window:])
         
-        # Plot 1: Episode Rewards
-        axes[0].plot(self.episode_rewards, alpha=0.3, color='blue', label='Raw Rewards')
-        if window > 0:
-            axes[0].plot(range(window-1, len(self.episode_rewards)), 
-                        rewards_smooth, color='darkblue', linewidth=2, 
-                        label=f'Rolling Avg ({window} eps)')
-        axes[0].axhline(y=0, color='red', linestyle='--', alpha=0.5, label='Zero Line')
-        axes[0].axhline(y=50, color='green', linestyle='--', alpha=0.5, label='Success Threshold')
-        axes[0].set_xlabel('Episode')
-        axes[0].set_ylabel('Reward')
-        axes[0].set_title(f'Training Progress - {self.n_calls:,} Steps')
-        axes[0].legend()
-        axes[0].grid(True, alpha=0.3)
+        # Log to CSV
+        new_row = pd.DataFrame([{'step': self.n_calls, 'reward': avg_reward, 'success_rate': success_rate}])
+        new_row.to_csv(self.csv_file, mode='a', header=False, index=False)
         
-        # Plot 2: Success Rate
-        if window > 0:
-            axes[1].plot(range(window-1, len(self.episode_successes)), 
-                        successes_smooth * 100, color='green', linewidth=2)
-        axes[1].set_xlabel('Episode')
-        axes[1].set_ylabel('Success Rate (%)')
-        axes[1].set_title(f'Success Rate (Rolling {window} episodes)')
-        axes[1].set_ylim([0, 105])
-        axes[1].grid(True, alpha=0.3)
-        
-        plt.tight_layout()
-        
-        # Save the plot
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        plot_path = os.path.join(self.save_path, f'training_progress_{self.n_calls}.png')
-        plt.savefig(plot_path, dpi=100, bbox_inches='tight')
-        plt.close()
-        
+        # Plotting
+        self._generate_plots(window)
+
         if self.verbose > 0:
-            avg_reward = np.mean(self.episode_rewards[-100:]) if len(self.episode_rewards) >= 100 else np.mean(self.episode_rewards)
-            success_rate = np.mean(self.episode_successes[-100:]) * 100 if len(self.episode_successes) >= 100 else np.mean(self.episode_successes) * 100
-            print(f"\n{'='*60}")
-            print(f"Progress Update at {self.n_calls:,} steps:")
-            print(f"  Avg Reward (last 100 eps): {avg_reward:.2f}")
-            print(f"  Success Rate (last 100 eps): {success_rate:.1f}%")
-            print(f"  Total Episodes: {len(self.episode_rewards)}")
-            print(f"  Plot saved: {plot_path}")
-            print(f"{'='*60}\n")
+             print(f"\n[Step {self.n_calls}] Avg Reward: {avg_reward:.2f} | Success Rate: {success_rate*100:.1f}%")
+
+    def _generate_plots(self, window):
+        fig, axes = plt.subplots(2, 1, figsize=(10, 8))
+        
+        # Smooth data for plotting
+        if len(self.episode_rewards) > 0:
+            # Reward Plot
+            axes[0].plot(self.episode_rewards, alpha=0.3, color='blue', label='Raw')
+            rewards_smooth = pd.Series(self.episode_rewards).rolling(window=window, min_periods=1).mean()
+            axes[0].plot(rewards_smooth, color='darkblue', label=f'Avg ({window})')
+            axes[0].axhline(y=50, color='green', linestyle='--', label='Success')
+            axes[0].set_title('Rewards')
+            axes[0].legend()
+            
+            # Success Plot
+            success_smooth = pd.Series(self.episode_successes).rolling(window=window, min_periods=1).mean() * 100
+            axes[1].plot(success_smooth, color='green')
+            axes[1].set_title(f'Success Rate % (Avg {window})')
+            axes[1].set_ylim(0, 105)
+
+        plt.tight_layout()
+        plot_file = os.path.join(self.save_path, f'progress_{self.n_calls}.png')
+        plt.savefig(plot_file)
+        plt.close()
 
 class NeuroShotTrainer:
-    def __init__(self, env_name="NeuroShot-v1", model_name="neuroshot_v1_ppo_model"):
-        self.env_name = env_name
-        self.model_name = model_name
+    def __init__(self, config_path="config/default.yaml"):
+        self.config = ConfigLoader.load(config_path)
+        self.env_name = self.config['env']['id']
+        
+        # Directory setup
+        self.models_dir = self.config['logging']['model_dir']
+        self.log_dir = self.config['logging']['log_dir']
+        os.makedirs(self.models_dir, exist_ok=True)
+        os.makedirs(self.log_dir, exist_ok=True)
 
-        # 1. Create the Environment Helper
-        # We wrap the environment in 'Monitor' so we get nice stats (Reward mean, etc.)
-        def make_env():
-            return Monitor(gym.make(self.env_name))
-
-        # 2. Vectorize the Environment
-        # This is the standard way SB3 expects environments to be passed
-        self.env = DummyVecEnv([make_env])
-
-        # 3. Define the Model
-        # Using standard parameters that work well for this kind of physics problem
+        self.env = DummyVecEnv([lambda: Monitor(gym.make(self.env_name))])
+        
+        # Hyperparams
+        hp = self.config['training']
         self.model = PPO(
             "MlpPolicy",
             self.env,
-            learning_rate=3e-4,
-            n_steps=2048,
-            batch_size=64,
-            gamma=0.99,
-            verbose=1,
+            learning_rate=float(hp['learning_rate']),
+            n_steps=hp['n_steps'],
+            batch_size=hp['batch_size'],
+            gamma=hp['gamma'],
+            seed=hp.get('seed', 42),
+            verbose=self.config['logging']['verbose'],
+            tensorboard_log=self.log_dir
         )
 
-    def train(self, steps, use_callback=True):
-        print(f"Training started on {self.env_name} for {steps:,} steps...")
-        print(f"This will take approximately {steps/1000000:.1f}M steps")
-        print(f"Expected training time: ~{steps/50000:.0f}-{steps/30000:.0f} minutes\n")
+    def train(self):
+        steps = self.config['training']['total_timesteps']
+        check_freq = self.config['logging']['check_freq']
+        save_path = self.config['logging']['save_path']
         
-        if use_callback:
-            callback = PlottingCallback(check_freq=500000, verbose=1)
-            self.model.learn(total_timesteps=steps, callback=callback)
-        else:
-            self.model.learn(total_timesteps=steps)
-            
-        print("\n" + "="*60)
-        print("Training finished!")
-        print("="*60)
-
-    def save(self):
-        self.model.save(self.model_name)
-        print(f"Model saved to {self.model_name}.zip")
+        print(f"Starting training on {self.env_name} for {steps} steps...")
+        
+        callback = PlottingCallback(check_freq=check_freq, save_path=save_path)
+        self.model.learn(total_timesteps=int(steps), callback=callback)
+        
+        # Save final model
+        model_path = os.path.join(self.models_dir, self.config['logging']['model_name'])
+        self.model.save(model_path)
+        print(f"Model saved to {model_path}")
 
 if __name__ == "__main__":
     trainer = NeuroShotTrainer()
-    # Train for 5 million steps (increased from 1M for better performance)
-    trainer.train(steps=5000000, use_callback=True)
-    trainer.save()
+    trainer.train()

@@ -1,0 +1,33 @@
+# Default Configuration for NeuroShot V1
+
+# Environment Settings
+env:
+  id: "NeuroShot-v1"
+  render_mode: null 
+  time_step: 0.03
+  gravity: 9.8
+
+# Training Hyperparameters (PPO)
+training:
+  total_timesteps: 1000000 
+  learning_rate: 3.0e-4
+  n_steps: 2048
+  batch_size: 64
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.0
+  vf_coef: 0.5
+  max_grad_norm: 0.5
+  device: "auto"
+  seed: 42
+
+# Checkpointing & Logging
+logging:
+  check_freq: 100000
+  save_path: "./training_plots"
+  model_dir: "./models"
+  log_dir: "./logs"
+  csv_log_file: "training_metrics.csv"
+  model_name: "neuroshot_v1_ppo_model"
+  verbose: 1

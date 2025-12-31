@@ -159,6 +159,38 @@ neuroshot/
 ### Observation Normalization
 All observations are normalized to approximately [-1, 1] or [0, 1] ranges to improve neural network training stability.
 
+## Configuration
+The project now uses a YAML configuration system.
+- **Config File**: `neuro_v1/config/default.yaml`
+- Modify training hyperparameters, environment settings, and logging paths here.
+
+## Evaluation & Benchmarking
+
+### Evaluate a Trained Agent
+Generate performance plots and statistics:
+```bash
+python neuro_v1/evaluate.py
+```
+
+### Compare Algorithms
+Benchmark PPO vs A2C (and others):
+```bash
+python neuro_v1/benchmark.py
+```
+
+## Deployment (API)
+Serve the model via HTTP using FastAPI:
+```bash
+uvicorn neuro_v1.app:app --reload
+```
+Test with: `curl -X POST "http://127.0.0.1:8000/predict" -H "Content-Type: application/json" -d '{"data": [0.5, -0.5, 0.1, 0.8, 0.5, 0.5, 0.5]}'`
+
+## Testing
+Run unit tests to verify environment logic:
+```bash
+pytest tests/
+```
+
 ## Training Tips
 
 1. **Start Simple**: Begin with `NeuroShot-v0` to verify your setup
