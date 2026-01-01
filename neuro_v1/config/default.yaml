@@ -9,8 +9,8 @@ env:
 
 # Training Hyperparameters (PPO)
 training:
-  total_timesteps: 3000000 
-  learning_rate: 3.0e-4
+  total_timesteps: 3000000  # <--- Kept high (3M) as you requested
+  learning_rate: 1.0e-4     # <--- FIX: Lowered from 3.0e-4 to prevent crashing
   n_steps: 2048
   batch_size: 64
   gamma: 0.99
