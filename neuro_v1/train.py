@@ -19,10 +19,12 @@ class PlottingCallback(BaseCallback):
     """
     Custom callback for plotting training progress and saving metrics to CSV.
     """
-    def __init__(self, check_freq: int, save_path: str, verbose=1):
+    def __init__(self, check_freq: int, save_path: str, model_dir: str, model_name: str, verbose=1):
         super(PlottingCallback, self).__init__(verbose)
         self.check_freq = check_freq
         self.save_path = save_path
+        self.model_dir = model_dir
+        self.model_name = model_name
         os.makedirs(save_path, exist_ok=True)
         
         # Configure CSV logging
@@ -61,6 +63,12 @@ class PlottingCallback(BaseCallback):
         
         # Plotting
         self._generate_plots(window)
+
+        # Save checkpoint
+        checkpoint_path = os.path.join(self.model_dir, f"{self.model_name}_{self.n_calls}_steps")
+        self.model.save(checkpoint_path)
+        if self.verbose > 0:
+            print(f"Callback saved model to {checkpoint_path}")
 
         if self.verbose > 0:
              print(f"\n[Step {self.n_calls}] Avg Reward: {avg_reward:.2f} | Success Rate: {success_rate*100:.1f}%")
@@ -123,7 +131,12 @@ class NeuroShotTrainer:
         
         print(f"Starting training on {self.env_name} for {steps} steps...")
         
-        callback = PlottingCallback(check_freq=check_freq, save_path=save_path)
+        callback = PlottingCallback(
+            check_freq=check_freq, 
+            save_path=save_path,
+            model_dir=self.models_dir,
+            model_name=self.config['logging']['model_name']
+        )
         self.model.learn(total_timesteps=int(steps), callback=callback)
         
         # Save final model
