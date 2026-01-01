@@ -11,7 +11,38 @@ class NeuroShotPlayer:
         if model_path is None:
             # Get the directory where this script is located
             script_dir = os.path.dirname(os.path.abspath(__file__))
-            model_path = os.path.join(script_dir, "neuroshot_v1_ppo_model")
+            
+            # Possible locations for models
+            possible_dirs = [
+                os.path.join(script_dir, "neuro_v1", "models"), # Nested case
+                os.path.join(script_dir, "models"),             # Standard case
+                script_dir                                      # Same dir case
+            ]
+            
+            found_model = False
+            for d in possible_dirs:
+                if os.path.exists(d):
+                    # Find all zip files
+                    files = [f for f in os.listdir(d) if f.endswith(".zip") and "neuroshot" in f]
+                    if files:
+                        # Sort by step count. Filename format: name_STEPS.zip or just name.zip
+                        # We try to extract digits.
+                        def get_steps(fname):
+                            parts = fname.replace(".zip", "").split("_")
+                            for p in parts:
+                                if p.isdigit():
+                                    return int(p)
+                            return 0
+                            
+                        files.sort(key=get_steps, reverse=True)
+                        model_path = os.path.join(d, files[0])
+                        print(f"Found latest model: {model_path} (Steps: {get_steps(files[0])})")
+                        found_model = True
+                        break
+            
+            if not found_model:
+                print("No model found! Using default path.")
+                model_path = os.path.join(script_dir, "neuroshot_v1_ppo_model")
         self.env = gym.make(env_name, render_mode="human")
         self.model = PPO.load(model_path)
 
