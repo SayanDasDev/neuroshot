@@ -69,6 +69,6 @@ class NeuroShotPlayer:
 if __name__ == "__main__":
     player = NeuroShotPlayer()
     try:
-        player.play(episodes=10, fixed=False)  # set fixed=True to debug
+        player.play(episodes=10, fixed=True)  # set fixed=True to debug
     finally:
         player.close()
