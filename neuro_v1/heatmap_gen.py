@@ -53,13 +53,13 @@ def generate_heatmap(model_path, episodes=100):
     plt.axhline(0, color='gray', linestyle='--') # Zero wind line
     
     # Save
-    os.makedirs("reports", exist_ok=True)
-    plt.savefig("reports/accuracy_heatmap.png")
-    print("Heatmap saved to reports/accuracy_heatmap.png")
+    os.makedirs("final_reports", exist_ok=True)
+    plt.savefig("final_reports/accuracy_heatmap.png")
+    print("Heatmap saved to final_reports/accuracy_heatmap.png")
 
 if __name__ == "__main__":
     # Point this to your BEST model
-    model_path = "neuro_v1/models/neuroshot_v1_ppo_model.zip" 
+    model_path = os.path.join("neuro_v1_models", "models", "neuroshot_v1_ppo_model_1100000_steps.zip") 
     if os.path.exists(model_path):
         generate_heatmap(model_path, episodes=200)
     else:
