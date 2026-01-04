@@ -57,9 +57,9 @@ def benchmark_algorithms(steps=50000):
     plt.legend()
     plt.grid(True, alpha=0.3)
     
-    os.makedirs("reports/benchmark", exist_ok=True)
-    plt.savefig("reports/benchmark/algo_comparison.png")
-    print("Benchmark saved to reports/benchmark/algo_comparison.png")
+    os.makedirs("final_reports/benchmark", exist_ok=True)
+    plt.savefig("final_reports/benchmark/algo_comparison.png")
+    print("Benchmark saved to final_reports/benchmark/algo_comparison.png")
 
 if __name__ == "__main__":
     benchmark_algorithms(steps=20000) # Increase steps for better results
