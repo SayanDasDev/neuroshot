@@ -162,7 +162,7 @@ class HumanVsAI:
 
 if __name__ == "__main__":
     # Point this to your BEST model
-    model_path ="neuro_v1_models\models\neuroshot_v1_ppo_model_1100000_steps.zip"
+    model_path = os.path.join("neuro_v1_models", "models", "neuroshot_v1_ppo_model_1100000_steps.zip")
     if os.path.exists(model_path):
         game = HumanVsAI(model_path)
         game.run()
