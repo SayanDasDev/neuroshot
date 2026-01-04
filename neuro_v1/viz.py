@@ -16,8 +16,8 @@ class NeuroShotPlayer:
             
             # Possible locations for models to auto-detect the best one
             possible_dirs = [
-                os.path.join(script_dir, "neuro_v1", "models"), # Nested case
-                os.path.join(script_dir, "models"),             # Standard case
+                os.path.join(script_dir, "neuro_v1_models", "models"), # Nested case
+                # os.path.join(script_dir, "models"),             # Standard case
                 script_dir                                      # Same dir case
             ]
             
