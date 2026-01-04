@@ -116,12 +116,20 @@ class NeuroShotEnv(gym.Env):
         # 3. Calculate Reward
         # Where is the basket at the exact moment of impact?
         final_basket_x = self.basket_x + (self.basket_speed * t) + (self.amplitude * np.sin(self.frequency * t))
-        error = abs(ball_x - final_basket_x)
+        
+        # --- FIX START ---
+        # The FIX: The target is the CENTER of the basket (Left Edge + Half Width)
+        # Basket width is 60, so half is 30.
+        target_center_x = final_basket_x + 30.0  
+        
+        # Calculate error based on the CENTER, not the left edge
+        error = abs(ball_x - target_center_x)
+        # --- FIX END ---
         
         # 🔧 Fix: Improved Reward Shaping
         # Give a small penalty based on distance to guide the AI
         reward = -error * 0.05
-        if error < 25: # Hit threshold
+        if error < 25: # Hit threshold (Radius of 25 pixels from center)
             reward += 100.0
         
         terminated = True
@@ -155,6 +163,7 @@ class NeuroShotEnv(gym.Env):
         pygame.draw.line(self.screen, (150, 150, 150), (0, int(self.GROUND_Y)), (self.WIDTH, int(self.GROUND_Y)), 2)
         
         # Basket (Cyan)
+        # Note: We still draw using basket_x because Pygame EXPECTS the top-left corner
         pygame.draw.rect(self.screen, (0, 255, 255), (int(basket_x), int(self.GROUND_Y) - 8, 60, 10))
         
         # Path and Ball
