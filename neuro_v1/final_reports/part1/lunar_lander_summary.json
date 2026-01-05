@@ -1,0 +1,71 @@
+{
+  "PPO": {
+    "seeds": [
+      0,
+      1
+    ],
+    "episodes_per_seed": [
+      273,
+      316
+    ],
+    "episodes_mean": 294.5,
+    "episodes_std": 30.405591591021544,
+    "last50_mean_per_seed": [
+      39.070499193988574,
+      72.4452574620486
+    ],
+    "last50_mean": 55.75787832801859,
+    "last50_std": 23.59951789180704,
+    "ep_to_80_per_seed": [
+      -1,
+      -1
+    ],
+    "ep_to_80_mean": null
+  },
+  "A2C": {
+    "seeds": [
+      0,
+      1
+    ],
+    "episodes_per_seed": [
+      382,
+      255
+    ],
+    "episodes_mean": 318.5,
+    "episodes_std": 89.80256121069154,
+    "last50_mean_per_seed": [
+      -219.0726769615868,
+      -205.0254870866023
+    ],
+    "last50_mean": -212.04908202409456,
+    "last50_std": 9.932863217216548,
+    "ep_to_80_per_seed": [
+      -1,
+      -1
+    ],
+    "ep_to_80_mean": null
+  },
+  "SAC": {
+    "seeds": [
+      0,
+      1
+    ],
+    "episodes_per_seed": [
+      181,
+      245
+    ],
+    "episodes_mean": 213.0,
+    "episodes_std": 45.254833995939045,
+    "last50_mean_per_seed": [
+      119.6115488162308,
+      215.00077769451272
+    ],
+    "last50_mean": 167.30616325537176,
+    "last50_std": 67.4503705919888,
+    "ep_to_80_per_seed": [
+      114,
+      137
+    ],
+    "ep_to_80_mean": 125.5
+  }
+}
