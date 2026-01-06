@@ -1,4 +1,3 @@
-# /home/sysadm/Music/neuroshot/env/neuroshot_v1_env.py
 import gymnasium as gym
 from gymnasium import spaces
 import numpy as np
@@ -6,7 +5,8 @@ import pygame
 from typing import Optional
 
 class NeuroShotEnv(gym.Env):
-    metadata = {"render_modes": ["human"], "render_fps": 60}
+    # 1. ADDED: 'rgb_array' to metadata so the recorder works
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 60}
 
     def __init__(self, render_mode: Optional[str] = None):
         super().__init__()
@@ -15,8 +15,7 @@ class NeuroShotEnv(gym.Env):
         # Actions: [Force, Angle] (Inputs are -1 to 1)
         self.action_space = spaces.Box(low=-1, high=1, shape=(2,), dtype=np.float32)
 
-        # Observations: Normalized [Basket X, Basket Speed, Wind, Amp, Freq, Ball X, Ball Y]
-        # We use -inf to inf to avoid warnings, but values will mostly be between -1 and 1
+        # Observations
         self.observation_space = spaces.Box(
             low=-np.inf, high=np.inf, shape=(7,), dtype=np.float32
         )
@@ -29,10 +28,6 @@ class NeuroShotEnv(gym.Env):
         self.clock = None
 
     def _get_obs(self):
-        """
-        Returns normalized observations to help the Neural Network learn faster.
-        Scales values to approximately 0.0 - 1.0 or -1.0 - 1.0 range.
-        """
         return np.array([
             self.basket_x / self.WIDTH,       # 0.0 to 1.0
             self.basket_speed / 20.0,         # approx -1.0 to 0.0
@@ -46,10 +41,7 @@ class NeuroShotEnv(gym.Env):
     def reset(self, seed: Optional[int] = None, options: Optional[dict] = None):
         super().reset(seed=seed)
 
-        # 🔧 Fix: Deterministic Reset for Testing
-        # If options={"fixed": True} is passed, we use the same values every time.
         fixed_mode = options and options.get("fixed")
-
         if fixed_mode:
             self.basket_x = 600.0
             self.basket_speed = -8.0
@@ -67,112 +59,96 @@ class NeuroShotEnv(gym.Env):
         return self._get_obs(), {}
 
     def step(self, action):
-        # 1. Action Decoding (Scale -1..1 to Physics Values)
-        # Force (v0): 30 to 110
         v0 = ((action[0] + 1) / 2) * 80 + 30
-        # Angle (theta): 15 to 85 degrees
         theta = np.radians(((action[1] + 1) / 2) * 70 + 15)
 
-        # Physics Constants
+        # Physics Constants (KEPT YOUR VALUES)
         g = 9.8
-        dt = 0.03  # 🔧 Fix: Smaller time step for smoother physics (was 0.08)
+        dt = 0.03  # Keeping 0.03 as you requested
         t = 0.0
         
-        # Initial Components
         vx = v0 * np.cos(theta)
         vy = v0 * np.sin(theta)
         
-        # 🔧 Fix: Use local variables for calculation to prevent "drifting" glitches
         ball_x, ball_y = 50.0, self.GROUND_Y
         path = []
+        frames = [] # 2. ADDED: List to store video frames
 
-        # 2. Physics Simulation Loop
-        # 🔧 Fix: Better loop condition (check both Y and X bounds)
         while ball_y <= self.GROUND_Y and ball_x <= self.WIDTH:
             t += dt
             
-            # Projectile Motion with Wind Acceleration
-            # x = x0 + vx*t + 0.5 * wind * t^2
             ball_x = 50.0 + (vx * t) + (0.5 * self.wind_force * t**2)
-            
-            # y = y0 - (vy*t - 0.5 * g * t^2)  (Minus because Y grows downwards)
             ball_y = self.GROUND_Y - (vy * t - 0.5 * g * t**2)
-            
-            # Update self.ball_pos ONLY for rendering/obs
             self.ball_pos = np.array([ball_x, ball_y])
             
-            # Basket Movement (Linear + Oscillation)
             oscillation = self.amplitude * np.sin(self.frequency * t)
             curr_basket_x = self.basket_x + (self.basket_speed * t) + oscillation
             
+            # 3. ADDED: Logic to capture frames if recording
+            path.append((int(ball_x), int(ball_y)))
+            
             if self.render_mode == "human":
-                path.append((int(ball_x), int(ball_y)))
                 self._render_frame(curr_basket_x, path)
+            elif self.render_mode == "rgb_array":
+                # Capture frame and add to list
+                frame = self._render_frame(curr_basket_x, path, return_rgb=True)
+                frames.append(frame)
 
-            # Break early if ball hits the ground
             if ball_y > self.GROUND_Y:
                 break
 
-        # 3. Calculate Reward
-        # Where is the basket at the exact moment of impact?
         final_basket_x = self.basket_x + (self.basket_speed * t) + (self.amplitude * np.sin(self.frequency * t))
-        
-        # --- FIX START ---
-        # The FIX: The target is the CENTER of the basket (Left Edge + Half Width)
-        # Basket width is 60, so half is 30.
         target_center_x = final_basket_x + 30.0  
-        
-        # Calculate error based on the CENTER, not the left edge
         error = abs(ball_x - target_center_x)
-        # --- FIX END ---
         
-        # 🔧 Fix: Improved Reward Shaping
-        # Give a small penalty based on distance to guide the AI
         reward = -error * 0.05
-        if error < 25: # Hit threshold (Radius of 25 pixels from center)
+        if error < 25: 
             reward += 100.0
         
         terminated = True
         truncated = False
         
-        return self._get_obs(), reward, terminated, truncated, {"error": error, "wind": self.wind_force}
+        # 4. ADDED: Return frames in the info dict
+        return self._get_obs(), reward, terminated, truncated, {"error": error, "wind": self.wind_force, "frames": frames}
 
-    def _render_frame(self, basket_x, path):
+    def _render_frame(self, basket_x, path, return_rgb=False):
         if self.screen is None:
             pygame.init()
-            self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
-            pygame.display.set_caption("NeuroShot v1 (Corrected)")
-            self.clock = pygame.time.Clock()
+            if self.render_mode == "human":
+                self.screen = pygame.display.set_mode((self.WIDTH, self.HEIGHT))
+            else:
+                # 5. ADDED: Create hidden surface for video recording
+                self.screen = pygame.Surface((self.WIDTH, self.HEIGHT))
+            
+            if self.render_mode == "human":
+                pygame.display.set_caption("NeuroShot v1")
+                self.clock = pygame.time.Clock()
 
-        # Darker background
         self.screen.fill((20, 10, 30)) 
         
-        # --- WIND GAUGE ---
+        # Wind Gauge
         center_x, center_y = 400, 50
-        # Draw baseline
         pygame.draw.line(self.screen, (60, 60, 90), (center_x - 80, center_y), (center_x + 80, center_y), 1)
         pygame.draw.circle(self.screen, (200, 200, 200), (center_x, center_y), 2)
-        
-        # Draw Arrow
         tip_x = center_x + int(self.wind_force * 25)
         if abs(self.wind_force) > 0.1:
             pygame.draw.line(self.screen, (100, 255, 100), (center_x, center_y), (tip_x, center_y), 3)
 
-        # --- ENVIRONMENT ---
-        # Ground
+        # Environment
         pygame.draw.line(self.screen, (150, 150, 150), (0, int(self.GROUND_Y)), (self.WIDTH, int(self.GROUND_Y)), 2)
-        
-        # Basket (Cyan)
-        # Note: We still draw using basket_x because Pygame EXPECTS the top-left corner
         pygame.draw.rect(self.screen, (0, 255, 255), (int(basket_x), int(self.GROUND_Y) - 8, 60, 10))
         
-        # Path and Ball
         if len(path) > 1:
             pygame.draw.lines(self.screen, (255, 100, 255), False, path, 2)
         pygame.draw.circle(self.screen, (255, 255, 255), (int(self.ball_pos[0]), int(self.ball_pos[1])), 6)
         
-        pygame.display.flip()
-        self.clock.tick(60)
+        if self.render_mode == "human":
+            pygame.display.flip()
+            self.clock.tick(60)
+        
+        # 6. ADDED: Return RGB array for video processing
+        if return_rgb:
+            return np.transpose(pygame.surfarray.array3d(self.screen), (1, 0, 2))
 
     def close(self):
         if self.screen: pygame.quit()
