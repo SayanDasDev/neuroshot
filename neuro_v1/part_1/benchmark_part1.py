@@ -70,8 +70,13 @@ def plot_results(results):
     plt.grid(True, alpha=0.3)
     
     # Save for Report
-    os.makedirs("final_reports/part1", exist_ok=True)
-    save_path = "final_reports/part1/lunar_lander_comparison.png"
+    # Determine the project root relative to this script (neuro_v1/part_1/benchmark_part1.py -> neuro_v1)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.dirname(script_dir)
+    report_dir = os.path.join(project_root, "final_reports", "part1")
+    
+    os.makedirs(report_dir, exist_ok=True)
+    save_path = os.path.join(report_dir, "lunar_lander_comparison.png")
     plt.savefig(save_path)
     print(f"\n✅ Graph saved to {save_path}")
     print("Include this image in 'Part 1' of your LaTeX report.")
