@@ -10,7 +10,7 @@ def train_all_algos():
     neuro_v1_dir = os.path.dirname(script_dir)
     models_dir = os.path.join(neuro_v1_dir, "part1_models")
     # models_dir = "neuro_v1/part1_models"
-    total_timesteps = 100000
+    total_timesteps = 150000
     
     # Define the algorithms to train
     algos = {
