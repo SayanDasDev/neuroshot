@@ -43,10 +43,10 @@ def print_manual():
     print("    [➡️  RIGHT ARROW] : Decrease Angle (Aim LOWER)")
     print("    [SPACEBAR]       : FIRE! (Ends your turn)")
     print("    [Q]              : Quit Simulation")
-    print("-" * 60)
-    print(" 📊 HUD GUIDE:")
-    print("    > WIND (Text): (+) pushes Right, (-) pushes Left.")
-    print("    > WHITE LINE: Shows your current aim direction.")
+    # print("-" * 60)
+    # print(" 📊 HUD GUIDE:")
+    # print("    > WIND (Text): (+) pushes Right, (-) pushes Left.")
+    # print("    > WHITE LINE: Shows your current aim direction.")
     print("="*60 + "\n")
 
 
