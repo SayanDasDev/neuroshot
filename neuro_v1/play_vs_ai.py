@@ -1,5 +1,3 @@
-# neuro_v1/play_vs_ai.py
-
 import pygame
 import numpy as np
 import gymnasium as gym
@@ -63,24 +61,26 @@ class HumanVsAI:
     def animate_shot(self, screen, v0, theta_deg, wind, env_core, who="HUMAN"):
         """
         Animates the ball AND moves the basket to match the physics.
+        Returns the final ball position for scoring check.
         """
         path = self.get_trajectory_points(v0, theta_deg, wind)
         
-        # --- FIX: Retrieve Correct Variables from Env ---
+        # --- Retrieve Correct Variables from Env ---
         A = env_core.amplitude
         f = env_core.frequency
-        start_basket_x = env_core.basket_x  # Changed from basket_center_x
+        start_basket_x = env_core.basket_x
         basket_speed = env_core.basket_speed
         
         t_anim = 0.0
-        dt = 0.05 
+        dt = 0.05
+        final_basket_x = start_basket_x
 
         for (x, y) in path:
             # 1. Update Basket Position (Matches neuroshot_v1_env.py logic)
-            # x = start + (velocity * t) + (Amplitude * sin(freq * t))
             oscillation = A * np.sin(f * t_anim)
             linear_move = basket_speed * t_anim
             basket_x = start_basket_x + linear_move + oscillation
+            final_basket_x = basket_x
             
             # 2. Draw Scene
             screen.fill(DARK_BG)
@@ -103,6 +103,20 @@ class HumanVsAI:
             time.sleep(0.01) # Speed of animation
             
             t_anim += dt # Advance time
+
+        # Return final positions for scoring check
+        if path:
+            final_ball_x = path[-1][0]
+            return final_ball_x, final_basket_x
+        return None, None
+
+    def check_score(self, ball_x, basket_x):
+        """Check if the ball landed in the basket (within 25 pixel radius)"""
+        if ball_x is None or basket_x is None:
+            return False
+        basket_center = basket_x + 30  # basket is 60 wide, center is +30
+        error = abs(ball_x - basket_center)
+        return error < 25
 
     def run(self):
         print("\n--- FAIR MODE: HUMAN vs AI ---")
@@ -148,15 +162,22 @@ class HumanVsAI:
             pygame.draw.rect(screen, CYAN, (int(basket_x), 340, 60, 10))
             pygame.draw.line(screen, RED, (int(basket_x) + 30, 340), (int(basket_x) + 30, 350), 2)
 
-            # Trajectory
+            # Trajectory - Show only first 30% to make it challenging
             wind = env_core.wind_force
             if waiting_for_shot:
                 points = self.get_trajectory_points(self.human_force, self.human_angle, wind)
-                for p in points:
-                    pygame.draw.circle(screen, (100, 100, 100), (int(p[0]), int(p[1])), 1)
-                if points:
-                    lx, ly = points[-1]
-                    pygame.draw.circle(screen, RED, (int(lx), int(ly)), 5)
+                # Show only first 30% of trajectory
+                visible_points = int(len(points) * 0.60)
+                for i, p in enumerate(points):
+                    if i < visible_points:
+                        # Make dots fade out towards the end
+                        alpha_factor = 1.0 - (i / visible_points) * 0.5
+                        gray_val = int(100 * alpha_factor)
+                        pygame.draw.circle(screen, (gray_val, gray_val, gray_val), (int(p[0]), int(p[1])), 1)
+                # Show small indicator at end of visible trajectory (not final landing)
+                if len(points) > visible_points:
+                    lx, ly = points[visible_points - 1]
+                    pygame.draw.circle(screen, ORANGE, (int(lx), int(ly)), 4)
 
             # Text
             screen.blit(font.render(f"Human: {self.score_human}", True, GREEN), (20, 20))
@@ -182,31 +203,50 @@ class HumanVsAI:
         env_core = self.env.unwrapped
         wind = env_core.wind_force
         
-        # HUMAN
-        # Pass env_core to animate_shot so it can read Amplitude/Freq
-        self.animate_shot(screen, self.human_force, self.human_angle, wind, env_core, "HUMAN")
+        # ===== HUMAN TURN =====
+        # Animate the shot and get final positions
+        ball_x, basket_x = self.animate_shot(
+            screen, self.human_force, self.human_angle, wind, env_core, "HUMAN"
+        )
         
-        action_force = ((self.human_force - 30) / 80) * 2 - 1
-        action_angle = ((self.human_angle - 15) / 70) * 2 - 1
-        _, reward, _, _, info = self.env.step(np.array([action_force, action_angle], dtype=np.float32))
-
-        msg = "HUMAN SCORES!" if info.get("error", 999) < 25 else "Human Missed"
-        color = GREEN if info.get("error", 999) < 25 else RED
+        # Check if human scored based on animation
+        human_scored = self.check_score(ball_x, basket_x)
+        
+        if human_scored:
+            self.score_human += 1
+            msg = "HUMAN SCORES!"
+            color = GREEN
+        else:
+            msg = "Human Missed"
+            color = RED
+        
         self.draw_message(screen, big_font, msg, color)
 
-        # AI
+        # ===== AI TURN =====
+        # Reset environment with same seed for fairness
         obs, _ = self.env.reset(seed=seed, options={"fixed": False})
         ai_action, _ = self.model.predict(obs, deterministic=True)
         
+        # Convert AI action to real values
         ai_force_real = ((ai_action[0] + 1) / 2) * 80 + 30
         ai_angle_real = ((ai_action[1] + 1) / 2) * 70 + 15
         
-        # Pass env_core again (it has fresh reset values)
-        self.animate_shot(screen, ai_force_real, ai_angle_real, wind, self.env.unwrapped, "AI AGENT")
+        # Animate AI shot and get final positions
+        ball_x, basket_x = self.animate_shot(
+            screen, ai_force_real, ai_angle_real, wind, self.env.unwrapped, "AI AGENT"
+        )
         
-        _, ai_reward, _, _, ai_info = self.env.step(ai_action)
-        msg = "AI SCORES!" if ai_info.get("error", 999) < 25 else "AI Missed"
-        color = CYAN if ai_info.get("error", 999) < 25 else WHITE
+        # Check if AI scored based on animation
+        ai_scored = self.check_score(ball_x, basket_x)
+        
+        if ai_scored:
+            self.score_ai += 1
+            msg = "AI SCORES!"
+            color = CYAN
+        else:
+            msg = "AI Missed"
+            color = WHITE
+        
         self.draw_message(screen, big_font, msg, color)
 
     def draw_message(self, screen, font, text, color):
@@ -215,7 +255,7 @@ class HumanVsAI:
         rect = surf.get_rect(center=(400, 200))
         screen.blit(surf, rect)
         pygame.display.flip()
-        time.sleep(1.0)
+        time.sleep(1.5)
 
 if __name__ == "__main__":
     # CHECK THIS PATH
