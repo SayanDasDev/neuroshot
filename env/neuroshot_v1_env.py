@@ -50,10 +50,10 @@ class NeuroShotEnv(gym.Env):
             self.frequency = 1.0
         else:
             self.basket_x = self.np_random.uniform(400, 700)
-            self.basket_speed = self.np_random.uniform(-10, -5)
+            self.basket_speed = 0.0 # Fixed range (no drift)
             self.wind_force = self.np_random.uniform(-3, 3)
-            self.amplitude = self.np_random.uniform(20, 50)
-            self.frequency = self.np_random.uniform(0.5, 2.0)
+            self.amplitude = self.np_random.uniform(50, 100) # Moderate range
+            self.frequency = self.np_random.uniform(1.0, 2.5) # Lower speed
 
         self.ball_pos = np.array([50.0, self.GROUND_Y])
         return self._get_obs(), {}

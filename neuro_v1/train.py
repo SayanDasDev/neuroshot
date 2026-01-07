@@ -42,12 +42,18 @@ class PlottingCallback(BaseCallback):
             pd.DataFrame(columns=['step', 'reward', 'success_rate']).to_csv(self.csv_file, index=False)
 
     def _on_step(self) -> bool:
-        if len(self.model.ep_info_buffer) > 0:
-            for info in self.model.ep_info_buffer:
-                if 'r' in info:
-                    self.episode_rewards.append(info['r'])
-                    self.episode_successes.append(1 if info['r'] > 50 else 0)
+        # Access the infos from the CURRENT step only
+        infos = self.locals.get("infos", [])
         
+        for info in infos:
+            # The Monitor wrapper adds "episode" key when an episode ends
+            if "episode" in info:
+                ep_info = info["episode"]
+                # Extract reward 'r' from the episode info
+                self.episode_rewards.append(ep_info['r'])
+                self.episode_successes.append(1 if ep_info['r'] > 50 else 0)
+        
+        # Check frequency logic remains the same
         if self.n_calls % self.check_freq == 0 and len(self.episode_rewards) > 0:
             self._plot_and_log()
             

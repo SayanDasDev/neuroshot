@@ -7,7 +7,7 @@ export default function Home() {
   const HEIGHT = 400;
   const GROUND_Y = 350;
   const G = 9.8;
-  const DT = 0.03; 
+  const DT = 0.03; // Time step matches Python Env
 
   // --- State ---
   const canvasRef = useRef(null);
@@ -21,7 +21,14 @@ export default function Home() {
   const [basket, setBasket] = useState({ x: 600, speed: -8, amp: 30, freq: 1, base: 600 });
   
   // Ball State
-  const [ball, setBall] = useState({ x: 50, y: GROUND_Y, vx: 0, vy: 0, active: false, path: [] });
+  // We track 't' (simulation time) to keep basket and ball in sync
+  const [simState, setSimState] = useState({ 
+    x: 50, y: GROUND_Y, 
+    vx: 0, vy: 0, 
+    active: false, 
+    t: 0, // Simulation time accumulator
+    path: [] 
+  });
   
   // Meta State
   const [status, setStatus] = useState("Ready");
@@ -34,7 +41,6 @@ export default function Home() {
   }, []);
 
   const resetLevel = () => {
-    // Randomize Environment similar to Env reset
     const newWind = (Math.random() * 6 - 3); // -3 to 3
     const newBase = 400 + Math.random() * 300; // 400 to 700
     setWind(newWind);
@@ -49,7 +55,13 @@ export default function Home() {
   };
 
   const resetBall = () => {
-    setBall({ x: 50, y: GROUND_Y, vx: 0, vy: 0, active: false, path: [] });
+    setSimState({ 
+        x: 50, y: GROUND_Y, 
+        vx: 0, vy: 0, 
+        active: false, 
+        t: 0, 
+        path: [] 
+    });
     setStatus("Ready");
   };
 
@@ -58,7 +70,12 @@ export default function Home() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
     let animationFrameId;
-    let t = 0; // Local time for basket oscillation
+
+    // Mutable ref to track physics between renders without triggering re-renders
+    // This allows smooth 60FPS animation independent of React state updates
+    let physics = { ...simState }; 
+    // We only update the local 'physics' object during the loop, 
+    // and sync back to React state only when the shot ends.
 
     const render = () => {
       // Clear
@@ -81,7 +98,7 @@ export default function Home() {
       ctx.lineTo(cx + 80, cy);
       ctx.stroke();
       if (Math.abs(wind) > 0.1) {
-        ctx.strokeStyle = '#22c55e'; // Green
+        ctx.strokeStyle = wind > 0 ? '#22c55e' : '#ef4444'; // Green right, Red left
         ctx.lineWidth = 3;
         ctx.beginPath();
         ctx.moveTo(cx, cy);
@@ -89,63 +106,76 @@ export default function Home() {
         ctx.stroke();
       }
 
-      // Update Basket Position (Oscillation)
-      // Note: React state update is async, so we use local math mostly or assume rough sync
-      // Ideally we track 'global time' state but for visual sim we increment strictly
-      t += DT;
-      
-      // Calculate current basket position based on initial params (simplified for loop)
-      // Real Env uses continuous time. Here we just animate 'live'
-      const oscillation = basket.amp * Math.sin(basket.freq * (Date.now() / 1000)); 
-      const currentBasketX = basket.base + oscillation; // Simplified movement for visual aid
+      // --- BASKET PHYSICS ---
+      let currentBasketX;
+
+      if (physics.active) {
+        // MOVING: If shot is active, update time and calculate position
+        physics.t += DT; 
+        
+        // x(t) = base + (v * t) + (A * sin(f * t))
+        const linearMove = basket.speed * physics.t;
+        const oscillation = basket.amp * Math.sin(basket.freq * physics.t);
+        currentBasketX = basket.base + linearMove + oscillation;
+      } else {
+        // IDLE: Show the "Start" position (t=0)
+        // This ensures the user aims at the same setup the AI sees.
+        currentBasketX = basket.base; 
+      }
 
       // Draw Basket
       ctx.fillStyle = '#06b6d4'; // Cyan
       ctx.fillRect(currentBasketX, GROUND_Y - 10, 60, 10);
+      // Center line
+      ctx.strokeStyle = '#ef4444';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(currentBasketX + 30, GROUND_Y - 10);
+      ctx.lineTo(currentBasketX + 30, GROUND_Y);
+      ctx.stroke();
 
-      // Update Ball Physics if active
-      if (ball.active) {
-        // Simple Euler integration
-        // x += vx * dt + 0.5 * wind * dt^2 (Env logic)
-        // Environment uses absolute time t. We stick to iterative for simple animation
-        
-        let newX = ball.x + (ball.vx * DT) + (0.5 * wind * DT * DT);
-        let newY = ball.y - ((ball.vy * DT) - (0.5 * G * DT * DT));
-        
-        // Update Velocity (approx)
-        let newVx = ball.vx + wind * DT;
-        let newVy = ball.vy - G * DT;
 
-        // Check Collision / Ground
-        if (newY >= GROUND_Y) {
+      // --- BALL PHYSICS ---
+      if (physics.active) {
+        // x += vx * dt + 0.5 * wind * dt^2
+        let newX = physics.x + (physics.vx * DT) + (0.5 * wind * DT * DT);
+        // y -= vy * dt - 0.5 * g * dt^2
+        let newY = physics.y - ((physics.vy * DT) - (0.5 * G * DT * DT));
+        
+        // Update velocity (for next frame, though Euler doesn't strictly need it for Pos)
+        physics.vx = physics.vx + wind * DT;
+        physics.vy = physics.vy - G * DT;
+
+        // Check Ground Collision
+        if (newY >= GROUND_Y || newX > WIDTH) {
           newY = GROUND_Y;
-          ball.active = false; // Stop
+          physics.active = false; // Stop
           
-          // Check Hit
-          const dist = Math.abs(newX - currentBasketX);
-          if (dist < 30) {
+          // Check Hit (Distance from Ball to Basket Center)
+          const basketCenter = currentBasketX + 30;
+          const dist = Math.abs(newX - basketCenter);
+          
+          if (dist < 25) { // Threshold matches Python Env
             setStatus("HIT! (+100)");
             setScore(s => s + 1);
           } else {
-            setStatus("MISS");
+            setStatus(`MISS (Err: ${dist.toFixed(1)})`);
           }
+          // Sync final state back to React
+          setSimState({...physics}); 
         }
 
-        // Mutation (safe inside render loop for performance, sync to state occasionally?)
-        // Actually modifying state in rAF is bad. We use local vars and ref.
-        ball.x = newX;
-        ball.y = newY;
-        ball.vx = newVx;
-        ball.vy = newVy;
-        ball.path.push({x: newX, y: newY});
+        physics.x = newX;
+        physics.y = newY;
+        physics.path.push({x: newX, y: newY});
       }
 
       // Draw Path
-      if (ball.path.length > 0) {
+      if (physics.path.length > 0) {
         ctx.strokeStyle = 'rgba(236, 72, 153, 0.5)'; // Pink
         ctx.lineWidth = 2;
         ctx.beginPath();
-        ball.path.forEach((p, i) => {
+        physics.path.forEach((p, i) => {
             if(i===0) ctx.moveTo(p.x, p.y);
             else ctx.lineTo(p.x, p.y);
         });
@@ -153,10 +183,23 @@ export default function Home() {
       }
 
       // Draw Ball
-      ctx.fillStyle = '#ffffff';
+      ctx.fillStyle = '#f97316'; // Orange
       ctx.beginPath();
-      ctx.arc(ball.x, ball.y, 6, 0, Math.PI * 2);
+      ctx.arc(physics.x, physics.y, 6, 0, Math.PI * 2);
       ctx.fill();
+
+      // If idle, draw the aiming line
+      if (!physics.active) {
+         const rad = angle * (Math.PI / 180);
+         const barrelX = 50 + 40 * Math.cos(rad);
+         const barrelY = GROUND_Y - 40 * Math.sin(rad);
+         ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+         ctx.lineWidth = 2;
+         ctx.beginPath();
+         ctx.moveTo(50, GROUND_Y);
+         ctx.lineTo(barrelX, barrelY);
+         ctx.stroke();
+      }
 
       animationFrameId = requestAnimationFrame(render);
     };
@@ -164,60 +207,52 @@ export default function Home() {
     render();
 
     return () => cancelAnimationFrame(animationFrameId);
-  }, [ball, basket, wind, force, angle]); // Re-bind if config changes
+  }, [simState.active, basket, wind, force, angle]); // Dependency array
 
   const handleManualShoot = () => {
-    resetBall();
-    // Convert Force/Angle to Vx/Vy
-    // Env Logic: 
-    // v0 = force
-    // theta = radians(angle)
+    // Convert inputs to velocity
     const theta = angle * (Math.PI / 180);
     const vx = force * Math.cos(theta);
     const vy = force * Math.sin(theta);
     
-    // Trigger loop
-    // slightly hacky: wait 1 frame for reset? 
-    setTimeout(() => {
-        setBall({ x: 50, y: GROUND_Y, vx, vy, active: true, path: [] });
-        setStatus("Flying...");
-    }, 50);
+    // Reset simulation time to 0 and activate
+    setSimState({ 
+        x: 50, y: GROUND_Y, 
+        vx, vy, 
+        active: true, 
+        t: 0, 
+        path: [] 
+    });
+    setStatus("Flying...");
   };
 
   const handleAIShot = async () => {
     setAiThinking(true);
     setStatus("AI Thinking...");
     
-    // 1. Normalize Observation
-    // [basket_x, basket_speed, wind, amp, freq, ball_x, ball_y]
-    // Note: Env uses Date-based or strict time-based basket pos. 
-    // For AI to work, we must send current basket state.
-    
-    // Normalization factors from env code
+    // Normalize Observation matches Python Env exactly
     const obs = [
-      basket.base / WIDTH,           // basket_x (approx base)
-      basket.speed / 20.0,           // speed
-      wind / 5.0,                    // wind
-      basket.amp / 50.0,             // amp
-      basket.freq / 2.0,             // freq
-      50.0 / WIDTH,                  // ball_x fixed start
-      GROUND_Y / HEIGHT              // ball_y fixed start
+      basket.base / WIDTH,         // basket_x
+      basket.speed / 20.0,         // basket_speed
+      wind / 5.0,                  // wind_force
+      basket.amp / 50.0,           // amplitude
+      basket.freq / 2.0,           // frequency
+      50.0 / WIDTH,                // ball_x
+      GROUND_Y / HEIGHT            // ball_y
     ];
 
     try {
-      const res = await fetch('http://127.0.0.1:8001/predict', {
+      // Ensure your app.py is running on port 8000
+      const res = await fetch('http://127.0.0.1:8000/predict', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
         body: JSON.stringify({ data: obs })
       });
       
       const data = await res.json();
-      const action = data.action; // [force_norm, angle_norm]
+      const action = data.action; 
       
-      // 2. Decode Action
-      // v0 = ((action[0] + 1) / 2) * 80 + 30
-      // theta = ((action[1] + 1) / 2) * 70 + 15
-      
+      // Decode Action
       const predForce = ((action[0] + 1) / 2) * 80 + 30;
       const predAngle = ((action[1] + 1) / 2) * 70 + 15;
       
@@ -225,11 +260,15 @@ export default function Home() {
       setAngle(predAngle);
       
       setAiThinking(false);
-      handleManualShoot(); // Auto-fire
+      
+      // Small delay so user sees the settings change before firing
+      setTimeout(() => {
+          handleManualShoot();
+      }, 500);
       
     } catch (e) {
       console.error(e);
-      setStatus("API Error");
+      setStatus("API Error (Is app.py running?)");
       setAiThinking(false);
     }
   };
@@ -238,7 +277,7 @@ export default function Home() {
     <main className="flex min-h-screen flex-col items-center justify-between p-12 bg-gray-950 text-white font-sans">
       <div className="z-10 max-w-5xl w-full items-center justify-between font-mono text-sm lg:flex">
         <p className="fixed left-0 top-0 flex w-full justify-center border-b border-gray-300 bg-gradient-to-b from-zinc-200 pb-6 pt-8 backdrop-blur-2xl lg:static lg:w-auto lg:rounded-xl lg:border lg:bg-gray-200 lg:p-4 lg:dark:bg-slate-800/30">
-          <code className="font-bold">NeuroShot End-to-End V1</code>
+          <code className="font-bold">NeuroShot Web Interface</code>
         </p>
         <div className="flex place-items-center gap-2">
             <span className="text-xl font-bold text-emerald-400">Score: {score}</span>
@@ -282,7 +321,8 @@ export default function Home() {
           <div className="flex gap-4 mt-6">
             <button 
                 onClick={handleManualShoot}
-                className="px-6 py-2 bg-slate-700 hover:bg-slate-600 rounded font-bold transition-all"
+                disabled={simState.active}
+                className="px-6 py-2 bg-slate-700 hover:bg-slate-600 disabled:opacity-50 rounded font-bold transition-all"
             >
                 Shoot
             </button>
@@ -309,7 +349,7 @@ export default function Home() {
             
             <button 
                 onClick={handleAIShot}
-                disabled={aiThinking}
+                disabled={aiThinking || simState.active}
                 className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl font-bold text-lg shadow-lg shadow-emerald-900/20 transition-all flex items-center justify-center gap-2"
             >
                 {aiThinking ? "Thinking..." : "✨ AI SHOT ✨"}

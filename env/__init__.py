@@ -25,5 +25,5 @@ register(
 register(
      id="NeuroShot-v1",
      entry_point="env.neuroshot_v1_env:NeuroShotEnv",
-     max_episode_steps=1,
+     max_episode_steps=300,
 )

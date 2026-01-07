@@ -74,7 +74,7 @@ class HumanVsAI:
         self.score_human = 0
         self.score_ai = 0
 
-    def animate_shot(self, screen, v0, theta_deg, wind, env_core, who="HUMAN"):
+    def animate_shot(self, screen, v0, theta_deg, wind, env_core, who="HUMAN", t_start=0.0):
         """
         Simulates the shot frame-by-frame for visualization.
         """
@@ -105,8 +105,13 @@ class HumanVsAI:
             ball_x = START_X + (vx * t) + (0.5 * wind * t * t)
             ball_y = START_Y - (vy * t - 0.5 * g * t * t)
 
-            oscillation = A * np.sin(f * t)
-            basket_x = start_basket_x + basket_speed * t + oscillation
+            current_t = t + t_start
+            
+            ball_x = START_X + (vx * t) + (0.5 * wind * t * t)
+            ball_y = START_Y - (vy * t - 0.5 * g * t * t)
+
+            oscillation = A * np.sin(f * current_t)
+            basket_x = start_basket_x + basket_speed * current_t + oscillation
             final_basket_x = basket_x
 
             # 2. Rendering
@@ -152,7 +157,7 @@ class HumanVsAI:
         basket_center = basket_x + 30
         return abs(ball_x - basket_center) < 25
 
-    def handle_round(self, screen, big_font, seed):
+    def handle_round(self, screen, big_font, seed, human_t_start=0.0):
         if isinstance(self.env, DummyVecEnv) or isinstance(self.env, VecNormalize):
             env_core = self.env.envs[0].unwrapped
         else:
@@ -162,7 +167,7 @@ class HumanVsAI:
 
         # ===== HUMAN TURN =====
         ball_x, basket_x = self.animate_shot(
-            screen, self.human_force, self.human_angle, wind, env_core, "HUMAN"
+            screen, self.human_force, self.human_angle, wind, env_core, "HUMAN", t_start=human_t_start
         )
 
         if self.check_score(ball_x, basket_x):
@@ -180,7 +185,7 @@ class HumanVsAI:
         ai_angle = ((ai_action[1] + 1) / 2) * 70 + 15
 
         ball_x, basket_x = self.animate_shot(
-            screen, ai_force, ai_angle, wind, env_core, "AI AGENT"
+            screen, ai_force, ai_angle, wind, env_core, "AI AGENT", t_start=0.0
         )
 
         if self.check_score(ball_x, basket_x):
@@ -216,8 +221,15 @@ class HumanVsAI:
 
         current_seed = random.randint(0, 100_000)
         self.env.reset(seed=current_seed)
+        
+        idle_time = 0.0
 
         while running:
+             # Track time for basket animation
+            dt_s = clock.get_time() / 1000.0
+            if waiting_for_shot:
+                idle_time += dt_s
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
                     running = False
@@ -226,10 +238,11 @@ class HumanVsAI:
                         running = False
                     if event.key == pygame.K_SPACE and waiting_for_shot:
                         waiting_for_shot = False
-                        self.handle_round(screen, big_font, current_seed)
+                        self.handle_round(screen, big_font, current_seed, human_t_start=idle_time)
                         current_seed = random.randint(0, 100_000)
                         self.env.reset(seed=current_seed)
                         waiting_for_shot = True
+                        idle_time = 0.0
 
             # Input Handling
             keys = pygame.key.get_pressed()
@@ -249,9 +262,12 @@ class HumanVsAI:
                 env_core = self.env.unwrapped
 
             # Basket
-            basket_x = env_core.basket_x
-            pygame.draw.rect(screen, CYAN, (int(basket_x), int(START_Y) - 10, 60, 10))
-            pygame.draw.line(screen, RED, (int(basket_x) + 30, int(START_Y) - 10), (int(basket_x) + 30, int(START_Y)), 2)
+            # Basket (Animated)
+            oscillation = env_core.amplitude * np.sin(env_core.frequency * idle_time)
+            curr_basket_x = env_core.basket_x + (env_core.basket_speed * idle_time) + oscillation
+            
+            pygame.draw.rect(screen, CYAN, (int(curr_basket_x), int(START_Y) - 10, 60, 10))
+            pygame.draw.line(screen, RED, (int(curr_basket_x) + 30, int(START_Y) - 10), (int(curr_basket_x) + 30, int(START_Y)), 2)
             
             # Wind Gauge
             self.draw_wind_gauge(screen, env_core.wind_force)
